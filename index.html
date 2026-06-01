@@ -118,7 +118,7 @@
         
         <div class="flex-1 overflow-y-auto p-4 space-y-3" id="historyList">
             <!-- Itens do histórico injetados via JS -->
-            <div class="text-center text-slate-500 text-sm mt-8">Nenhum histórico salvo.</div>
+            <div class="text-center text-slate-500 text-sm mt-8">Carregando histórico do servidor...</div>
         </div>
     </aside>
 
@@ -289,12 +289,31 @@
         </div>
     </div>
 
-    <script>
-        /**
-         * Arquiteto de Sistemas - State Management e Persistência
-         */
-        const STORAGE_KEY = 'lavanderia_history_v1';
+    <!-- Type Module required to use ES6 Imports from Firebase Web SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // Firebase Configurações
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVdDV_CwpzcG9aYkVBLOPXX6pyGKLdp-M",
+            authDomain: "controle-lavanderia-e3008.firebaseapp.com",
+            databaseURL: "https://controle-lavanderia-e3008-default-rtdb.firebaseio.com",
+            projectId: "controle-lavanderia-e3008",
+            storageBucket: "controle-lavanderia-e3008.firebasestorage.app",
+            messagingSenderId: "132102473954",
+            appId: "1:132102473954:web:a928b1f7e2f4c6df44f6bb"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
         
+        // Referência do nó no banco onde todo o histórico ficará armazenado
+        const historyRef = ref(db, 'lavanderia_history_v1');
+
+        /**
+         * Arquiteto de Sistemas - State Management
+         */
         const AppState = {
             currentId: null, // null = Novo registro. ID = Registro salvo no histórico.
             date: '',
@@ -303,7 +322,7 @@
             sectionCount: 0,
             sectionValue: 32.00,
             editingIndex: -1, // -1 significa Modo Inserção. >= 0 significa Modo Edição.
-            history: [], // Carregado do LocalStorage
+            history: [], // Sincronizado do Firebase
             
             get totalPieces() {
                 return this.records.reduce((acc, r) => acc + r.total, 0);
@@ -353,24 +372,39 @@
         };
 
         /**
-         * Inicialização e Persistência de Dados
+         * Sincronização e Persistência de Dados (Firebase Realtime)
          */
         const loadHistory = () => {
-            const data = localStorage.getItem(STORAGE_KEY);
-            if(data) {
-                try { AppState.history = JSON.parse(data); } 
-                catch(e) { AppState.history = []; }
-            }
-            
-            // Set default date to today for new controls
-            if(!AppState.currentId && !AppState.date) {
-                DOM.inputs.date.value = new Date().toISOString().split('T')[0];
-                AppState.date = DOM.inputs.date.value;
-            }
+            // Listener em tempo real - toda vez que o banco alterar, isso roda automático!
+            onValue(historyRef, (snapshot) => {
+                const data = snapshot.val();
+                
+                if(data) {
+                    AppState.history = data;
+                } else {
+                    AppState.history = [];
+                }
+                
+                // Define data padrão caso seja um controle novo
+                if(!AppState.currentId && !AppState.date) {
+                    DOM.inputs.date.value = new Date().toISOString().split('T')[0];
+                    AppState.date = DOM.inputs.date.value;
+                }
+
+                // Renderiza a tela após trazer dados do servidor
+                render();
+            }, (error) => {
+                console.error("Erro de leitura Firebase:", error);
+                showModal("Não foi possível carregar os dados. Verifique sua conexão ou as Regras do Banco no Firebase.", "error");
+            });
         };
 
         const saveHistoryToStorage = () => {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(AppState.history));
+            // Salva na nuvem ao invés do localStorage
+            set(historyRef, AppState.history).catch((error) => {
+                console.error("Erro de escrita Firebase:", error);
+                showModal("Erro ao salvar no banco. Verifique as Regras de leitura e gravação no Firebase.", "error");
+            });
         };
 
         const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -404,10 +438,10 @@
                             <td class="px-6 py-4 text-center text-slate-700 font-medium">${record.others}</td>
                             <td class="px-6 py-4 text-center font-black text-blue-700 bg-blue-50/50">${record.total}</td>
                             <td class="px-6 py-4 text-right space-x-2">
-                                <button onclick="handleEdit(${idx})" class="${isEditing ? 'text-amber-500' : 'text-slate-400 hover:text-blue-600'} transition-colors p-2 rounded-lg hover:bg-white focus:outline-none" title="Editar">
+                                <button onclick="window.handleEdit(${idx})" class="${isEditing ? 'text-amber-500' : 'text-slate-400 hover:text-blue-600'} transition-colors p-2 rounded-lg hover:bg-white focus:outline-none" title="Editar">
                                     <i class="fa-solid fa-pen"></i>
                                 </button>
-                                <button onclick="handleDelete(${idx})" class="text-slate-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-white focus:outline-none" title="Excluir">
+                                <button onclick="window.handleDelete(${idx})" class="text-slate-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-white focus:outline-none" title="Excluir">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
                             </td>
@@ -431,7 +465,7 @@
                     const displayDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : ctrl.date;
                     
                     DOM.displays.historyList.innerHTML += `
-                        <div class="bg-slate-800/80 rounded-xl p-4 border ${isActive ? 'border-blue-500 shadow-md shadow-blue-900/50' : 'border-slate-700'} hover:border-slate-500 transition-all cursor-pointer group" onclick="loadControl(${ctrl.id})">
+                        <div class="bg-slate-800/80 rounded-xl p-4 border ${isActive ? 'border-blue-500 shadow-md shadow-blue-900/50' : 'border-slate-700'} hover:border-slate-500 transition-all cursor-pointer group" onclick="window.loadControl(${ctrl.id})">
                             <div class="flex justify-between items-start mb-2">
                                 <span class="text-xs font-bold text-blue-400"><i class="fa-regular fa-calendar mr-1"></i> ${displayDate}</span>
                                 <span class="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded">NF: ${ctrl.nf || 'S/N'}</span>
@@ -441,7 +475,7 @@
                                     <div class="text-lg font-black text-white">${formatCurrency(ctrl.sectionCount * ctrl.sectionValue)}</div>
                                     <div class="text-xs text-slate-400 mt-1">${ctrl.records.length} Colaboradores | ${ctrl.records.reduce((a,r)=>a+r.total,0)} Peças</div>
                                 </div>
-                                <button onclick="event.stopPropagation(); deleteHistoryControl(${ctrl.id})" class="text-slate-500 hover:text-red-400 p-2 opacity-0 group-hover:opacity-100 transition-opacity" title="Apagar Histórico">
+                                <button onclick="event.stopPropagation(); window.deleteHistoryControl(${ctrl.id})" class="text-slate-500 hover:text-red-400 p-2 opacity-0 group-hover:opacity-100 transition-opacity" title="Apagar Histórico">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
@@ -532,7 +566,9 @@
             render();
         };
 
+        // Exportando para Window para os onclicks inline funcionarem com ES Modules
         window.handleEdit = (idx) => setEditMode(idx);
+        
         window.handleDelete = (idx) => {
             if(AppState.editingIndex === idx) setEditMode(-1);
             AppState.records.splice(idx, 1);
@@ -562,7 +598,7 @@
             }
 
             saveHistoryToStorage();
-            render();
+            // render() será chamado automaticamente pelo listener onValue do Firebase
             showModal("Controle salvo no histórico com sucesso!", "success");
         };
 
@@ -584,7 +620,6 @@
             AppState.history = AppState.history.filter(c => c.id !== id);
             saveHistoryToStorage();
             if(AppState.currentId === id) startNewControl(); // Se apagou o ativo, reseta a tela
-            else render();
         };
 
         const startNewControl = () => {
@@ -632,9 +667,8 @@
             });
         });
 
-        // Bootstrap App
+        // Bootstrap App chamando carregamento do Banco
         loadHistory();
-        render();
 
     </script>
 </body>
