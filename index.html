@@ -95,6 +95,111 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.4); 
         }
+
+        /* CONFIGURAÇÃO DE IMPRESSÃO (GERAÇÃO DE PDF OFICIAL - READEQUAÇÃO ESTRUTURAL) */
+        @media print {
+            /* 1. Reset de Escopo Global: Destrói o comportamento de App/Tela */
+            @page { margin: 1.5cm; size: A4 portrait; }
+            
+            body, html {
+                background: #ffffff !important;
+                color: #000000 !important;
+                height: auto !important;        /* Remove h-screen */
+                min-height: 100% !important;
+                overflow: visible !important;   /* Permite transbordo para novas páginas */
+                display: block !important;      /* Destrói o flex raiz para paginação natural */
+                font-size: 11pt !important;
+            }
+
+            /* 2. Ocultar Camada de UI Interativa e Efeitos Visuais */
+            .animated-bg, aside, .watermark, .no-print, #systemModal {
+                display: none !important;
+            }
+
+            /* 3. Readequação da Área Principal para Comportamento de Documento */
+            main {
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                display: block !important;
+            }
+
+            /* 4. Conversão do Dashboard para um Cabeçalho Executivo Limpo */
+            .grid { 
+                display: flex !important; 
+                flex-wrap: wrap !important;
+                gap: 15px !important;
+                border-bottom: 2px solid #000;
+                padding-bottom: 15px;
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+            }
+            .glass-card {
+                background: none !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                flex: 1 1 auto;
+                min-width: 150px;
+                break-inside: avoid;
+            }
+            /* Remove fundos escuros do card de valor total */
+            .bg-gradient-to-br {
+                background: none !important;
+                border: 1px solid #000 !important;
+                padding: 10px !important;
+            }
+            .absolute { display: none !important; } /* Oculta reflexos decorativos */
+
+            /* 5. Motor de Tabela: Prevenção de Cortes e Repetição de Headers */
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                page-break-after: auto;
+            }
+            /* FORÇA O CABEÇALHO A REPETIR EM CADA PÁGINA NOVA */
+            thead {
+                display: table-header-group !important;
+            }
+            /* O corpo da tabela pode dividir */
+            tbody {
+                display: table-row-group !important;
+            }
+            /* IMPEDE QUE A LINHA CORTE NO MEIO ENTRE DUAS PÁGINAS */
+            tr { 
+                page-break-inside: avoid !important; 
+                page-break-after: auto !important;
+                border-bottom: 1px solid #e2e8f0 !important;
+            }
+            th, td {
+                padding: 8px 4px !important;
+                color: #000 !important;
+                background: transparent !important;
+            }
+            th { 
+                border-bottom: 2px solid #000 !important; 
+                background-color: #f8fafc !important; 
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            
+            /* Forçar cores pretas para leitura no PDF, exceto destaques numéricos */
+            * { text-shadow: none !important; }
+            .text-blue-700 { color: #000 !important; font-weight: 900 !important; }
+
+            /* 6. Formatação de Inputs Ativos para Texto Fixo em PDF */
+            input {
+                border: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-weight: bold;
+                color: #000 !important;
+            }
+        }
     </style>
 </head>
 <body class="text-slate-800 antialiased h-screen flex">
@@ -191,7 +296,7 @@
             </div>
 
             <!-- Entrada de Dados -->
-            <div class="glass-card rounded-2xl overflow-hidden relative">
+            <div class="glass-card rounded-2xl overflow-hidden relative no-print">
                 <!-- Highlight line for edit mode -->
                 <div id="editModeIndicator" class="absolute top-0 left-0 w-full h-1 bg-amber-500 hidden"></div>
                 
@@ -237,15 +342,19 @@
 
             <!-- Tabela de Registros -->
             <div class="glass-card rounded-2xl overflow-hidden shadow-xl mb-12">
-                <div class="px-6 py-4 border-b border-slate-200/50 flex justify-between items-center bg-white/40">
+                <div class="px-6 py-4 border-b border-slate-200/50 flex justify-between items-center bg-white/40 no-print">
                     <h2 class="text-lg font-bold text-slate-800">Detalhamento para NF</h2>
-                    <div class="flex gap-4">
-                        <button id="btnClearAll" class="text-sm text-red-500 hover:text-red-700 font-bold transition-colors">
+                    <div class="flex gap-4 flex-wrap justify-end">
+                        <button id="btnClearAll" class="text-sm text-red-500 hover:text-red-700 font-bold transition-colors px-2">
                             Limpar Tudo
+                        </button>
+                        <button id="btnExportPDF" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-md shadow-indigo-500/30 transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-file-pdf"></i>
+                            Exportar PDF
                         </button>
                         <button id="btnSaveControl" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-md shadow-emerald-500/30 transition-all flex items-center gap-2">
                             <i class="fa-solid fa-floppy-disk"></i>
-                            Salvar / Finalizar Controle
+                            Salvar Controle
                         </button>
                     </div>
                 </div>
@@ -259,7 +368,7 @@
                                 <th class="px-6 py-4 font-extrabold text-center">Casacos</th>
                                 <th class="px-6 py-4 font-extrabold text-center">Outros</th>
                                 <th class="px-6 py-4 font-extrabold text-center text-blue-700">Total</th>
-                                <th class="px-6 py-4 font-extrabold text-right">Ações</th>
+                                <th class="px-6 py-4 font-extrabold text-right no-print">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="tableBody" class="divide-y divide-slate-200/50 text-sm bg-white/60">
@@ -312,6 +421,40 @@
         const historyRef = ref(db, 'lavanderia_history_v1');
 
         /**
+         * Rascunho Local (Prevenção de Perda de Dados - AutoSave Anti-F5)
+         */
+        const DRAFT_KEY = 'lavanderia_draft_v1';
+        
+        const saveDraftLocally = () => {
+            const draft = {
+                currentId: AppState.currentId,
+                date: AppState.date,
+                nf: AppState.nf,
+                records: AppState.records,
+                sectionCount: AppState.sectionCount,
+                sectionValue: AppState.sectionValue
+            };
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        };
+
+        const loadDraftLocally = () => {
+            try {
+                const saved = localStorage.getItem(DRAFT_KEY);
+                if(saved) {
+                    const draft = JSON.parse(saved);
+                    AppState.currentId = draft.currentId;
+                    AppState.date = draft.date;
+                    AppState.nf = draft.nf;
+                    AppState.records = draft.records || [];
+                    AppState.sectionCount = draft.sectionCount || 0;
+                    AppState.sectionValue = draft.sectionValue || 32.00;
+                    return true;
+                }
+            } catch(e) { console.error("Erro ao ler rascunho", e); }
+            return false;
+        };
+
+        /**
          * Arquiteto de Sistemas - State Management
          */
         const AppState = {
@@ -349,7 +492,8 @@
                 cancelEdit: document.getElementById('btnCancelEdit'),
                 clearAll: document.getElementById('btnClearAll'),
                 saveControl: document.getElementById('btnSaveControl'),
-                newControl: document.getElementById('btnNewControl')
+                newControl: document.getElementById('btnNewControl'),
+                exportPDF: document.getElementById('btnExportPDF')
             },
             displays: {
                 totalPieces: document.getElementById('dashTotalPieces'),
@@ -375,18 +519,22 @@
          * Sincronização e Persistência de Dados (Firebase Realtime)
          */
         const loadHistory = () => {
+            // Tenta carregar o rascunho local primeiro para evitar perda
+            loadDraftLocally();
+
             // Listener em tempo real - toda vez que o banco alterar, isso roda automático!
             onValue(historyRef, (snapshot) => {
                 const data = snapshot.val();
                 
                 if(data) {
-                    AppState.history = data;
+                    // Converte de forma segura o objeto do Firebase para Array
+                    AppState.history = Object.values(data).filter(item => item !== null);
                 } else {
                     AppState.history = [];
                 }
                 
-                // Define data padrão caso seja um controle novo
-                if(!AppState.currentId && !AppState.date) {
+                // Define data padrão caso seja um controle novo e sem rascunho
+                if(!AppState.currentId && !AppState.date && AppState.records.length === 0) {
                     DOM.inputs.date.value = new Date().toISOString().split('T')[0];
                     AppState.date = DOM.inputs.date.value;
                 }
@@ -399,17 +547,12 @@
             });
         };
 
-        const saveHistoryToStorage = () => {
-            // Salva na nuvem ao invés do localStorage
-            set(historyRef, AppState.history).catch((error) => {
-                console.error("Erro de escrita Firebase:", error);
-                showModal("Erro ao salvar no banco. Verifique as Regras de leitura e gravação no Firebase.", "error");
-            });
-        };
-
         const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
         const render = () => {
+            // Salva o estado atual no armazenamento local sempre que QUALQUER coisa muda
+            saveDraftLocally();
+
             // Sincroniza Inputs Meta
             if(document.activeElement !== DOM.inputs.date) DOM.inputs.date.value = AppState.date;
             if(document.activeElement !== DOM.inputs.nf) DOM.inputs.nf.value = AppState.nf;
@@ -423,7 +566,7 @@
             // Table
             DOM.displays.tableBody.innerHTML = '';
             if (AppState.records.length === 0) {
-                DOM.displays.tableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-12 text-center text-slate-500 font-medium">Nenhum registro adicionado. Comece inserindo um colaborador acima.</td></tr>`;
+                DOM.displays.tableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-12 text-center text-slate-500 font-medium no-print">Nenhum registro adicionado. Comece inserindo um colaborador acima.</td></tr>`;
             } else {
                 AppState.records.forEach((record, idx) => {
                     const isEditing = AppState.editingIndex === idx;
@@ -437,7 +580,7 @@
                             <td class="px-6 py-4 text-center text-slate-700 font-medium">${record.jackets}</td>
                             <td class="px-6 py-4 text-center text-slate-700 font-medium">${record.others}</td>
                             <td class="px-6 py-4 text-center font-black text-blue-700 bg-blue-50/50">${record.total}</td>
-                            <td class="px-6 py-4 text-right space-x-2">
+                            <td class="px-6 py-4 text-right space-x-2 no-print">
                                 <button onclick="window.handleEdit(${idx})" class="${isEditing ? 'text-amber-500' : 'text-slate-400 hover:text-blue-600'} transition-colors p-2 rounded-lg hover:bg-white focus:outline-none" title="Editar">
                                     <i class="fa-solid fa-pen"></i>
                                 </button>
@@ -589,17 +732,19 @@
                 sectionValue: AppState.sectionValue
             };
 
-            const existingIdx = AppState.history.findIndex(c => c.id === controlData.id);
-            if(existingIdx > -1) {
-                AppState.history[existingIdx] = controlData; // Atualiza existente
-            } else {
-                AppState.history.push(controlData); // Novo no histórico
-                AppState.currentId = controlData.id; // Marca como o ativo salvo
-            }
-
-            saveHistoryToStorage();
-            // render() será chamado automaticamente pelo listener onValue do Firebase
-            showModal("Controle salvo no histórico com sucesso!", "success");
+            // Gravação Cirúrgica e Segura no Firebase: Salva APENAS este ID.
+            // Nunca mais sobrescreve ou afeta outros registros.
+            const itemRef = ref(db, 'lavanderia_history_v1/' + controlData.id);
+            set(itemRef, controlData)
+                .then(() => {
+                    AppState.currentId = controlData.id;
+                    saveDraftLocally(); // Atualiza o rascunho
+                    showModal("Controle salvo no histórico com sucesso!", "success");
+                })
+                .catch((error) => {
+                    console.error("Erro de escrita Firebase:", error);
+                    showModal("Erro ao salvar no banco. Verifique as Regras de gravação no Firebase.", "error");
+                });
         };
 
         window.loadControl = (id) => {
@@ -617,8 +762,10 @@
         };
 
         window.deleteHistoryControl = (id) => {
-            AppState.history = AppState.history.filter(c => c.id !== id);
-            saveHistoryToStorage();
+            // Apaga de forma cirúrgica e segura no Firebase
+            const itemRef = ref(db, 'lavanderia_history_v1/' + id);
+            set(itemRef, null); 
+            
             if(AppState.currentId === id) startNewControl(); // Se apagou o ativo, reseta a tela
         };
 
@@ -651,6 +798,11 @@
         DOM.buttons.cancelEdit.addEventListener('click', () => setEditMode(-1));
         DOM.buttons.saveControl.addEventListener('click', saveControl);
         DOM.buttons.newControl.addEventListener('click', startNewControl);
+        
+        DOM.buttons.exportPDF.addEventListener('click', () => {
+            window.print();
+        });
+
         DOM.buttons.clearAll.addEventListener('click', () => {
             if(AppState.records.length > 0) {
                 AppState.records = [];
